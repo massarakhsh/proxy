@@ -1,16 +1,19 @@
 package main
 
 import (
-	"github.com/massarakhsh/servnet/base"
-	"github.com/massarakhsh/servnet/controller/gate"
-	"github.com/massarakhsh/servnet/ruler"
-	"github.com/massarakhsh/servnet/task/web"
 	"fmt"
+	"github.com/massarakhsh/servnet/base"
+	"github.com/massarakhsh/servnet/controller/root"
+	"github.com/massarakhsh/servnet/ruler"
+	"github.com/massarakhsh/servnet/task/baser"
+	"github.com/massarakhsh/servnet/task/web"
 	"os"
 	"time"
 
 	"github.com/massarakhsh/lik"
 )
+
+var mask = 0
 
 func main() {
 	lik.SetLevelInf()
@@ -18,11 +21,23 @@ func main() {
 	if !getArgs() {
 		return
 	}
-	if !base.OpenDB(ruler.HostServ, ruler.HostBase, ruler.HostUser, ruler.HostPass) {
+	if !base.OpenDB(base.HostServ, base.HostBase, base.HostUser, base.HostPass) {
 		return
 	}
-	ruler.RootCreator = gate.BuildGate
-	go web.StartHttp()
+	base.WaitDB()
+	ruler.RootCreator = root.BuildRoot
+	if (mask & 0x1) == 0 {
+		baser.StartBaser()
+	}
+	if (mask & 0x2) == 0 {
+		baser.StartPinger()
+	}
+	if (mask & 0x4) == 0 {
+		baser.StartARP()
+	}
+	if (mask & 0x8) == 0 {
+		web.StartHttp()
+	}
 	for !ruler.IsStoping() {
 		time.Sleep(time.Second)
 	}
@@ -31,30 +46,33 @@ func main() {
 
 func getArgs() bool {
 	args, ok := lik.GetArgs(os.Args[1:])
+	if val := args.GetInt("mode"); val > 0 {
+		mask = val
+	}
 	if val := args.GetString("port"); val != "" {
 		ruler.HostPort = lik.StrToInt(val)
 	}
 	if val := args.GetString("serv"); val != "" {
-		ruler.HostServ = val
+		base.HostServ = val
 	}
 	if val := args.GetString("base"); val != "" {
-		ruler.HostBase = val
+		base.HostBase = val
 	}
 	if val := args.GetString("user"); val != "" {
-		ruler.HostUser = val
+		base.HostUser = val
 	}
 	if val := args.GetString("pass"); val != "" {
-		ruler.HostPass = val
+		base.HostPass = val
 	}
 	if val := args.GetString("debug"); val != "" {
-		ruler.DebugLevel = lik.StrToInt(val)
+		base.DebugLevel = lik.StrToInt(val)
 	}
-	if len(ruler.HostBase) <= 0 {
+	if len(base.HostBase) <= 0 {
 		fmt.Println("HostBase name must be present")
 		ok = false
 	}
 	if !ok {
-		fmt.Println("Usage: proxy [-key val | --key=val]...")
+		fmt.Println("Usage: servnet [-key val | --key=val]...")
 		fmt.Println("port    - port value (80)")
 		fmt.Println("serv    - Database server")
 		fmt.Println("base    - Database name")
@@ -63,4 +81,3 @@ func getArgs() bool {
 	}
 	return ok
 }
-
